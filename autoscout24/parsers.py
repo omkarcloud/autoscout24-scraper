@@ -48,13 +48,15 @@ autoMatchPackage: the dealer's AutoScout24 plan) and the dealer's sellId
 (an internal id that never appears in links).
 """
 import html as htmllib
-import json
+import fastjson
 import re
 from datetime import datetime, timezone
 
 from autoscout24.refs import (CONDITIONS, COUNTRY_OF_CODE, CYLINDERS, DRIVETRAINS, FUELS, OFFER_TYPE_LABELS,
                               SELLER_TYPES, SITE, SORTS, TRANSMISSIONS, UPHOLSTERY, VEHICLE_TYPE_OF_CODE,
                               absolute, dealer_link, dealer_token_of, listing_link)
+from scraper_utils.values import bool_or_none as _flag
+from scraper_utils.text import squashed_any as _str
 
 _NEXT_DATA_RE = re.compile(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', re.S)
 _TITLE_RE = re.compile(r"<title>([^<]*)</title>", re.I)
@@ -100,7 +102,7 @@ def next_data(html):
     if not match:
         return None
     try:
-        return json.loads(match.group(1))
+        return fastjson.loads(match.group(1))
     except ValueError:
         return None
 
@@ -117,11 +119,6 @@ def _clean(value):
         value = " ".join(value.split())
         return value or None
     return value
-
-
-def _str(value):
-    value = _clean(value)
-    return str(value) if value is not None and not isinstance(value, (dict, list)) else None
 
 
 def _number(value):
@@ -266,10 +263,6 @@ def _measure(text):
         return None, None
     unit = (match.group(2) or "").strip() or None
     return _number(match.group(1)), unit
-
-
-def _flag(value):
-    return value if isinstance(value, bool) else None
 
 
 def html_to_text(fragment):

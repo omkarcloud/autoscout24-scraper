@@ -56,6 +56,7 @@ import egress
 from scraper_errors import BadRequest, Blocked, NotFound, UpstreamError
 from autoscout24.parsers import next_data, page_title
 from autoscout24.refs import SITE
+from scraper_utils import retry, sessions
 
 IMPERSONATE = "chrome"
 PAGE_TIMEOUT = 40     # /lst pages run 0.5-0.9 MB, dealer pages ~0.3 MB
@@ -135,28 +136,13 @@ def _session():
 def _drop_session():
     """Close the thread's session so a poisoned keep-alive connection (or a
     refused exit) dies with it."""
-    sess = getattr(_local, "session", None)
-    _local.session = None
-    if sess is not None:
-        try:
-            sess.close()
-        except Exception:
-            pass
+    sessions.drop(_local)
 
 
 def _retrying(fn):
     """Run fn() under the shared retry policy (AutoScout24UpstreamError and
     AutoScout24Blocked only; NotFound / BadRequest surface immediately)."""
-    last = None
-    for attempt in range(1, config.MAX_RETRIES + 1):
-        try:
-            return fn()
-        except AutoScout24UpstreamError as e:
-            last = e
-            _drop_session()
-            if attempt < config.MAX_RETRIES:
-                time.sleep(config.RETRY_BACKOFF * attempt)
-    raise last
+    return retry.run(fn, config, AutoScout24UpstreamError, lambda e: _drop_session())
 
 
 def build_id():
